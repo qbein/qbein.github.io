@@ -1,121 +1,214 @@
-'use asm';
-'use strict';
+(function() {
+	'use asm';
+	'use strict';
 
-var palette = [
-	{ r:3, g:18, b:33 },
-	{ r:255, g:255, b:255 },
-	{ r:144, g:82, b:13 }
-];
-
-document.addEventListener("DOMContentLoaded", function() {
-  new Mandelbrot(
-  	document.getElementById('fractal'),
-  	null);
-});
-
-function Mandelbrot(el, palette) {
-	var zoomTimeout,
-			iterations = 256,
-			ctx = el.getContext('2d'),
-			scaleFactor = backingScale(ctx);
-
-	function backingScale(context) {
-    if ('devicePixelRatio' in window) {
-        if (window.devicePixelRatio > 1) {
-            return window.devicePixelRatio;
-        }
-    }
-    return 1;
+	function tween(b, a, fraction) {
+		return b+(a-b)*fraction;
 	}
 
-	if(scaleFactor > 1) {
-    el.width = el.offsetWidth * scaleFactor;
-    el.height = el.offsetHeight * scaleFactor;
-	} else {
-		el.width = el.offsetWidth;
-		el.height = el.offsetHeight;
-	}
-
-	var ctx = el.getContext('2d'),
-			width = 5,
-			height = 2,
-			center = { x: 0, y: 0 },
-			canvasWidth = el.width,
-			canvasHeight = el.height,
-			data = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-
-	if(!palette) {
-		palette = [];
-		for(var i=0; i<256; i+=1) {
-			palette.push({r: i, g: i, b: i});
+	function tweenColor(color1, color2, fraction) {
+		return {
+			r: tween(color1.r, color2.r, fraction),
+			g: tween(color1.g, color2.g, fraction),
+			b: tween(color1.b, color2.b, fraction)
 		}
 	}
 
-	el.addEventListener('click', function(e) {
-		centerOn(e);
-		draw();
+	var iterations = 128,
+			palette = [],
+			colors = [
+				{ r:3, 	 g:18,  b:33 },
+				{ r:3, 	 g:74,  b:100 },
+				{ r:255, g:255, b:255 },
+				{ r:144, g:82,  b:13 },
+			];
+
+	// Generate a wider palette based on the number of iterations
+	colors.forEach(function(c, i) {
+		var k = (i+1) % colors.length;
+		var steps = iterations / colors.length;
+		for(var j=0; j<steps; j+=1) {
+			palette.push(tweenColor(c, colors[k], j/steps));
+		}
 	});
 
-	el.addEventListener('mousewheel', function(e) {
-		var delta = 1 - e.deltaY / 100;
-		height *= delta;
-		width *= delta;
-		
-		if(zoomTimeout) clearTimeout(zoomTimeout);
-		zoomTimeout = setTimeout(function() {
-			draw();
-		}, 150);
-
-		e.preventDefault();
+	document.addEventListener("DOMContentLoaded", function() {
+	  var mandelbrot = new Mandelbrot(
+	  	document.getElementById('fractal'),
+	  	palette);
 	});
 
-	function centerOn(e) {
-		center.x += ((e.offsetX * scaleFactor) - (canvasWidth / 2)) * getRatioX();
-		center.y += ((e.offsetY * scaleFactor) - (canvasHeight / 2)) * getRatioY();
-	}
+	function Mandelbrot(el, palette) {
+		var self = this,
+				defaultColor = { r: 0, g: 0, b: 0 },
+				ctx = el.getContext('2d'),
+				scaleFactor = backingScale(ctx);
 
-	function valueOr(value, _default) {
-		return value ? value : _default;
-	}
+		function backingScale(context) {
+	    if ('devicePixelRatio' in window) {
+	        if (window.devicePixelRatio > 1) {
+	            return window.devicePixelRatio;
+	        }
+	    }
+	    return 1;
+		}
 
-	function drawPixel(x, y, rgb) {
-		var i = (x + y * canvasWidth) * 4,
-				r = valueOr(rgb.r, 0),
-				g = valueOr(rgb.g, 0),
-				b = valueOr(rgb.b, 0);
-		
-		if(r || g || b) {
+		var ctx = el.getContext('2d'),
+				canvasWidth, 
+				canvasHeight,
+				aspect, 
+				width, 
+				height, 
+				center, 
+				data;
+
+		refreshDimensions();
+
+		if(!palette) {
+			palette = [];
+			for(var i=255;i>=0; i-=15) {
+				palette.push({ r: i, g: i, b: i });
+			}
+		}
+
+		function refreshDimensions() {
+			if(scaleFactor > 1) {
+		    el.width = el.offsetWidth * scaleFactor;
+		    el.height = el.offsetHeight * scaleFactor;
+			} else {
+				el.width = el.offsetWidth;
+				el.height = el.offsetHeight;
+			}
+
+			canvasWidth = el.width;
+			canvasHeight = el.height;
+			aspect = canvasWidth / canvasHeight;
+			width = width || 5;
+			height = width / aspect;
+			center = center || { x: 0, y: 0 };
+			data = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+		}
+
+		var deferredActions = {};
+		function deferred(callback, delay) {
+			if(deferredActions.hasOwnProperty(callback)) {
+				clearTimeout(deferredActions[callback]);
+			}
+			deferredActions[callback] = setTimeout(callback, delay);
+		}
+
+		window.addEventListener('resize', function(e) {
+			refreshDimensions();
+			delayedDraw();
+		});
+
+		el.addEventListener('click', function(e) {
+			centerOn(e);
+			delayedDraw();
+		});
+
+
+		document.body.addEventListener('keyup', function(e) {
+			if(e.keyCode == 0x28 || e.keyCode == 0x26) {
+				var delta = 0.7;
+				if(e.keyCode == 0x28) {
+					delta *= -1;
+				} 
+				height *= delta;
+				width *= delta;	
+			}
+			else if(e.keyCode == 0x25 || e.keyCode == 0x27) {
+				if(e.keyCode == 0x27) {
+					iterations *= 2;
+				} else {
+					iterations /= 2;
+				}
+			}
+			else {
+				return;
+			}
+
+			delayedDraw();
+			
+			e.preventDefault();
+		});
+
+		function centerOn(e) {
+			center.x += ((e.offsetX * scaleFactor) - (canvasWidth / 2)) * getRatioX();
+			center.y += ((e.offsetY * scaleFactor) - (canvasHeight / 2)) * getRatioY();
+		}
+
+		function valueOr(value, _default) {
+			return value ? value : _default;
+		}
+
+		function drawPixel(x, y, rgb) {
+			var i = (x + y * canvasWidth) * 4,
+					r = valueOr(rgb.r, 0),
+					g = valueOr(rgb.g, 0),
+					b = valueOr(rgb.b, 0);
+			
 			data.data[i]     = r;
 			data.data[i + 1] = g;
 			data.data[i + 2] = b;
 			data.data[i + 3] = 255;
 		}
-	}
 
-	function update() {
-		ctx.putImageData(data, 0, 0);
-	}
+		function update(y) {
+			ctx.putImageData(data,0,y);
+		}
 
-	function getRatioX() {
-		return width / canvasWidth;
-	}
+		function getRatioX() {
+			return width / canvasWidth;
+		}
 
-	function getRatioY() {
-		return height / canvasHeight;
-	}
+		function getRatioY() {
+			return height / canvasHeight;
+		}
 
-	function draw() {
-		console.log('-- Draw Mandelbrot -- ');
-		console.log('Canvas width: ' + canvasWidth + ' height: ' + canvasHeight);
-		console.log('Mandelbrot coord center.x: ' + center.x + ', center.y: ' + center.y + ', width: ' + width + ', height: ' + height);
+		function delayedDraw() {
+			deferred(function() {
+				self.draw();
+			}, 100);
+		}
 
-		var start = new Date().getTime(),
-				ratioX = getRatioX(),
-				ratioY = getRatioY();
+		this.draw = function() {
+			console.log('-- Draw Mandelbrot -- ');
+			console.log('Canvas width: ' + canvasWidth + ' height: ' + canvasHeight);
+			console.log('Mandelbrot coord center.x: ' + center.x + ', center.y: ' + center.y + ', width: ' + width + ', height: ' + height);
 
-		console.log('Canvar to fractal ratioX: ' + ratioX + ', ratioY: ' + ratioY);
+			var	ratioX = getRatioX(),
+					ratioY = getRatioY();
 
-		for(var canvasY=0; canvasY<=canvasHeight; canvasY+=1) {
+			var start = new Date().getTime();
+	
+			setTimeout(function() {
+				renderSection(0, ratioX, ratioY, function() {
+					console.log('Done in ' + (new Date().getTime() - start) / 1000 + 's');
+					update(0);
+				});
+			});
+		}
+
+		function renderSection(canvasY, ratioX, ratioY, callback) {
+			var start = new Date().getTime(),
+					done = true;
+
+			while(renderLine(canvasY++, ratioY, ratioX)) {
+				if((new Date().getTime() - start) > 200) {
+					//setTimeout(function() { renderSection(canvasY, ratioX, ratioY, callback) }, 0);
+					renderSection(canvasY, ratioX, ratioY, callback);
+					done = false;
+					break;
+				}
+			}
+			
+			if(done && callback) {
+				callback();
+			}
+		}
+
+		function renderLine(canvasY, ratioY, ratioX) {				
 			var fractalY = (canvasY * ratioY) - (height / 2) + center.y;
 
 			for(var canvasX=0; canvasX<=canvasWidth; canvasX+=1) {
@@ -123,7 +216,7 @@ function Mandelbrot(el, palette) {
 					canvasX, 
 					canvasY, 
 					mapColor(
-						countIterations(
+						iterateMandelbrot(
 							// Convert canvas coordinate to fractal coordinate
 							(canvasX * ratioX) - (width / 2) + center.x, 
 							fractalY
@@ -131,45 +224,55 @@ function Mandelbrot(el, palette) {
 					)
 				);
 			}
+
+			if(canvasY>canvasHeight) {
+				return false;
+			}
+
+			return true;
 		}
 
-		update();
 
-		console.log('Done in ' + (new Date().getTime() - start) / 1000 + 's');
-	}
+		function mapColor(i) {
+			if(i == Infinity) {
+				return defaultColor;
+			}
+			
+			var idx1 = Math.floor(i) % palette.length;
+			var idx2 = Math.ceil(i) % palette.length;
 
-	function mapColor(i) {
-		return i < iterations
-			? palette[i%palette.length]
-			: { r: 8, g: 8, b: 8 };
-	}
-
-	/*
-	function getFraction(f) {
-		return Math.ceil(((f < 1.0) ? f : (f % Math.floor(f))) * 10000);
-	}
-	*/
-
-	function countIterations(currentX, currentY) {
-		var x = 0, y = 0, n = 0;
-
-		for(n=0; n<iterations; n+=1) {
-			var z = x*x - y*y;
-			if(z > 4) break;
-
-			var xtmp = z + currentX;
-			y = 2*x*y + currentY;
-			x = xtmp;
+			return tweenColor(palette[idx1], palette[idx2], getFraction(i));
 		}
 
-		return n;
-		/*
-		return n<iterations
-			? n + 1 - Math.log(Math.log(z))/Math.log(2)
-			: 0;
-		*/
+		function getFraction(f) {
+			return f - Math.floor(f);
+		}
+
+		function iterateMandelbrot(cX, cY) {
+			var z, 
+					n = 0,
+					zX = cX,
+					zY = cY;
+
+			for(; n<iterations; n+=1) {
+				z = zX*zX + zY*zY;
+
+				// Using the "normal" escape radius of 4 (2^2) causes severe
+				// banding when generating smooth iteration values
+				if(z > 100) {
+					break;
+				}
+
+				var tmp = zX*zX-zY*zY;
+				zY = 2*zX*zY + cY;
+				zX = tmp + cX;
+			} 
+
+			return n < iterations && n > 0
+				? n + 1 - Math.log(Math.log(Math.sqrt(z)))/Math.log(2.0)
+				: Infinity;
+		}
+
+		self.draw();
 	}
-
-	draw();
-}
-
+})();
