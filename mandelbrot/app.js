@@ -90,32 +90,35 @@
 		}
 
 		var deferredActions = {};
-		function deferred(callback, delay) {
-			if(deferredActions.hasOwnProperty(callback)) {
-				clearTimeout(deferredActions[callback]);
+		function deferred(callback, delay, key) {
+			if(!key) key = callback;
+			if(deferredActions.hasOwnProperty(key)) {
+				clearTimeout(deferredActions[key]);
 			}
-			deferredActions[callback] = setTimeout(callback, delay);
+			deferredActions[key] = setTimeout(callback, delay || 0);
 		}
 
 		window.addEventListener('resize', function(e) {
 			refreshDimensions();
-			delayedDraw();
+			self.draw();
 		});
 
 		el.addEventListener('click', function(e) {
 			centerOn(e);
-			delayedDraw();
+			self.draw();
 		});
 
 
 		document.body.addEventListener('keyup', function(e) {
 			if(e.keyCode == 0x28 || e.keyCode == 0x26) {
 				var delta = 0.7;
-				if(e.keyCode == 0x28) {
-					delta *= -1;
-				} 
-				height *= delta;
-				width *= delta;	
+				if(e.keyCode == 0x26) {
+					height *= delta;
+					width *= delta;	
+				} else {
+					height /= delta;
+					width /= delta;	
+				}
 			}
 			else if(e.keyCode == 0x25 || e.keyCode == 0x27) {
 				if(e.keyCode == 0x27) {
@@ -128,7 +131,7 @@
 				return;
 			}
 
-			delayedDraw();
+			self.draw();
 			
 			e.preventDefault();
 		});
@@ -166,12 +169,6 @@
 			return height / canvasHeight;
 		}
 
-		function delayedDraw() {
-			deferred(function() {
-				self.draw();
-			}, 100);
-		}
-
 		this.draw = function() {
 			console.log('-- Draw Mandelbrot -- ');
 			console.log('Canvas width: ' + canvasWidth + ' height: ' + canvasHeight);
@@ -182,22 +179,28 @@
 
 			var start = new Date().getTime();
 	
-			setTimeout(function() {
+			deferred(function() {
 				renderSection(0, ratioX, ratioY, function() {
 					console.log('Done in ' + (new Date().getTime() - start) / 1000 + 's');
 					update(0);
 				});
-			});
+			}, 0, 'render');
 		}
 
 		function renderSection(canvasY, ratioX, ratioY, callback) {
+			console.log('Rendering section..');
+
 			var start = new Date().getTime(),
 					done = true;
 
+			var renderFunc = function() { renderSection(canvasY, ratioX, ratioY, callback) };
+
 			while(renderLine(canvasY++, ratioY, ratioX)) {
 				if((new Date().getTime() - start) > 200) {
-					//setTimeout(function() { renderSection(canvasY, ratioX, ratioY, callback) }, 0);
-					renderSection(canvasY, ratioX, ratioY, callback);
+					update(0);
+					deferred(renderFunc, 0, 'render');
+					//setTimeout(renderFunc, 0);
+					//renderFunc(); // renderSection(canvasY, ratioX, ratioY, callback);
 					done = false;
 					break;
 				}
