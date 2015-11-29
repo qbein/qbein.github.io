@@ -1,34 +1,46 @@
 html, body {
+  width: 100%;
   height: 100%;
   color: #e0e0e0;
-  font-family: 'Lato';
+  font-family: system, -apple-system, ".SFNSText-Regular", "San Francisco", "Roboto", "Segoe UI", "Helvetica Neue", "Lucida Grande", sans-serif;
   padding: 0;
   margin: 0;
-  font-size: 150%;
+  font-size: 1.5em;
 }
 body {
   background: #000;
 }
 
-#container {
-  overflow: hidden;
+#content {
   position: absolute;
   left: 0;
-  top: 0;
   right: 0;
+  top: 0;
   bottom: 0;
-  z-index: 2;
 }
 
-#weather {
+.inner-content {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  bottom: 20px;
+  bottom: 0;
   overflow: auto;
 }
 
+#footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 20px;
+  font-size: 12pt;
+  padding: 5px 10px;
+  background-color: rgba(0,0,0,.5);
+}
+
+/*
+ * Current weather.
+ */
 #weather .reading {
   text-align: center;
   float: left;
@@ -52,15 +64,9 @@ body {
   color: #888;
 }
 
-#footer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 20px;
-  font-size: 12pt;
-}
-
+/*
+ * Spinner.
+ */
 #spinner {
   display: table;
   height: 100%;
@@ -74,17 +80,58 @@ body {
   display: table-cell;
   vertical-align: middle;
 }
-#spinner>div>svg {
+#spinner>div>object {
   display: block;
   margin: 0 auto;
+  width: 100px;
+  height: 100px;
 }
 
-#content {
-  display: none;
+/*
+ * History grid.
+ */
+table { 
+  width: 100%; 
+  height: 100%; 
+  overflow: auto; 
+  border-collapse: collapse; 
+  font-size: 1.2em; 
 }
-#content.initialized {
-  display: block;
+th, td { 
+  padding: 2px 15px; 
+  font-weight: normal; 
+  white-space: nowrap; 
 }
-#content.initialized #weather {
-  background: #000;
+th { 
+  vertical-align: top; 
+  white-space: nowrap; 
+  color: #222; 
+}
+th.sub { 
+  font-size: 0.5em; 
+}
+th.period, td.period { 
+  background-color: #222; 
+  text-align: left; 
+}
+th.rain { 
+  color: #91B2BF; 
+}
+th.in-temp { 
+  color: #F1594A; 
+}
+th.out-temp { 
+  color: #249AA7; 
+}
+th.wind { 
+  color: #ABD25E; 
+}
+th.sub, th.period, td { 
+  border-bottom: 2px solid #373737; 
+}
+td { 
+  text-align: right; 
+}
+td.negative { 
+  color: #249AA7; 
 }
