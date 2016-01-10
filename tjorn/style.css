@@ -32,10 +32,22 @@ body {
   position: absolute;
   bottom: 0;
   left: 0;
-  height: 20px;
+  right: 0;
   font-size: 12pt;
   padding: 5px 10px;
+}
+#footer div.text {
   background-color: rgba(0,0,0,.5);
+  vertical-align: bottom;
+  position: absolute;
+  bottom: 5px;
+}
+#footer div.cam a {
+  float: right;
+}
+#footer div.cam a>img {
+  height: 40px;
+  width: 40px;
 }
 
 /*
