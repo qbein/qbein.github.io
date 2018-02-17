@@ -1,19 +1,158 @@
 <!doctype html>
 <html>
-  <head>
-    <title>Været på Tjørn, Aadnøy</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=560, initial-scale=1.0, maximum-scale=1.0" />
-    
-    <link rel="stylesheet" href="style.css" type="text/css" media="screen"/>
 
-    <link rel="apple-touch-icon" href="images/app-icon.png">
-    <link rel="apple-touch-icon" sizes="76x76" href="images/app-icon.png">
-    <link rel="apple-touch-icon" sizes="120x120" href="images/app-icon@2x.png">
-    <link rel="apple-touch-icon" sizes="152x152" href="images/app-icon@2x.png">
-  </head>
-  <body>
-    <script type="text/javascript" src="bundle.js"></script>
-    <!--<script type="text/javascript" src="vendor/highcharts/highcharts.js">-->
-  </body>
+<head>
+  <title>Været på Tjørn, Aadnøy</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="vendor.css" type="text/css" media="screen" />
+  <link rel="stylesheet" href="style.css" type="text/css" media="screen" />
+</head>
+
+<body>
+  <div id="main" v-bind:class="$route.name" v-cloak>
+    <ul class="nav nav-pills justify-content-center">
+      <li class="nav-item">
+        <router-link to="/" exact class="nav-link">Nå</router-link>
+      </li>
+      <!--
+      <li class="nav-item">
+        <router-link to="/historic" class="nav-link">Før</router-link>
+      </li>
+      -->
+      <li class="nav-item">
+          <router-link to="/cam" class="nav-link">Kamera</router-link>
+        </li>
+    </ul>
+    
+    <div class="container-fluid">
+      <transition name="fade" mode="out-in">
+        <router-view></router-view>
+      </transition>
+    </div>
+  </div>
+  
+  <script type="text/x-template" id="historic-weather-template">
+    <div>
+      <div class="row form-group" style="font-size: .5em">
+          <div class="col-6">
+            <label>Fra:
+            <input type="date" class="form-control" v-model="from" v-bind:max="getMaxFrom()" v-on:change="update()" placeholder="Fra"></input>
+            </label>
+          </div>
+          <div class="col-6">
+            <label>Til:
+            <input type="date" class="form-control" v-model="to" v-bind:max="getMaxTo()" v-on:change="update()" placeholder="Til"></input>
+            </label>
+          </div>
+      </div>
+      <table class="table">
+        <tr>
+          <th class="period" rowSpan="2"></th>
+          <th class="rain">Nedbør</th>
+          <th class="in-temp" colSpan="3">Inne</th>
+          <th class="out-temp" colSpan="3">Ute</th>
+          <th class="wind" colSpan="2">Vind</th>
+        </tr>
+        <tr>
+          <th class="rain sub">mm</th>
+          <th class="in-temp sub">Snitt</th>
+          <th class="in-temp sub">Varmest</th>
+          <th class="in-temp sub">Kaldest</th>
+          <th class="out-temp sub">Snitt</th>
+          <th class="out-temp sub">Varmest</th>
+          <th class="out-temp sub">Kaldest</th>
+          <th class="wind sub">Snitt</th>
+          <th class="wind sub">Sterkest</th>
+        </tr>
+        <tr v-for="item in aggregated">
+          <td class="period">{{ item.period }}</td>
+          <td class="value">{{ round(item.rain*10, 1) }}</td>
+          <td class={resolveclass(row.value.inTemp)}>{{ round(item.inTempAvg, 0) }}&deg;</td>
+          <td class={resolveclass(row.value.inTempMax.value)}>{{ round(item.inTempMax, 0) }}&deg;</td>
+          <td class={resolveclass(row.value.inTempMin.value)}>{{ round(item.inTempMin, 0) }}&deg;</td>
+          <td class={resolveclass(row.value.outTemp)}>{{ round(item.outTempAvg, 0) }}&deg;</td>
+          <td class={resolveclass(row.value.outTempMax.value)}>{{ round(item.outTempMax, 0) }}&deg;</td>
+          <td class={resolveclass(row.value.outTempMin.value)}>{{ (item.outTempMin, 0) }}&deg;</td>
+          <td class="value">{{ round(item.windSpeedAvg, 1) }}</td>
+          <td class="value">{{ round(item.windSpeedMax, 1) }}</td>
+        </tr>
+      </table>
+    </div>
+  </script>
+
+  <script type="text/x-template" id="cam-template">
+    <div class="row cam-images">
+      <div class="col-12 col-sm-12 text-center">
+          <img class="img-fluid" src="https://s3-eu-west-1.amazonaws.com/tjorn/latest1.jpg"/>
+      </div>
+      <!--
+      <div class="col-12 col-sm-6 text-center">
+        <img class="img-fluid" src="https://s3-eu-west-1.amazonaws.com/tjorn/latest2.jpg"/>
+      </div>
+      -->
+    </div>
+  </script>
+
+  <script type="text/x-template" id="current-weather-template">
+    <div>
+      <div id="current" class="row">
+        <div v-if="current.outTemp != null" class="col-6 col-sm-3 reading outdoor-temperature">
+          <div class="header">Ute</div>
+          <div class="value big">{{ Math.round(current.outTemp) }}</div>
+          <div class="unit">&deg;C</div>
+        </div>
+        <div v-if="current.inTemp != null" class="col-6 col-sm-3 reading indoor-temperature">
+          <div class="header">Inne</div>
+          <div class="value big">{{ Math.round(current.inTemp) }}</div>
+          <div class="unit">&deg;C</div>
+        </div>
+        <div v-if="current.pressure != null" class="col-6 col-sm-3 reading pressure">
+          <div class="header">Trykk</div>
+          <!-- 32.66 mmbar is compensation for ~300m above sea level -->             
+          <div class="value">{{ Math.round(current.pressure + 32.66) }}</div>
+          <div class="unit">mbar ( {{ current.pressure + 32.66 >= 1013 ? 'H' : 'L' }}{{ getPressureArrow() }} )
+          </div>
+        </div>
+        <div v-if="current.rain != null" class="col-6 col-sm-3 reading rain">
+          <div class="header">Regn</div>
+          <div class="value">{{ Math.round(current.rain*1000)/100 }}</div>
+          <div class="unit">mm døgn</div>
+        </div>
+        <div v-if="current.windSpeed != null" class="col-6 col-sm-3 reading wind">
+          <div class="header">Vind</div>
+          <div class="value">{{ Math.round(current.windSpeed * 10)/10 }}</div>
+          <div class="unit">m/s{{ current.windDir !== null ? ' ' + current.windDir + String.fromCharCode('176') : '' }}</div>
+        </div>
+        <div v-if="current.windGust != null && current.windGustDir != null" class="col-6 col-sm-3 reading wind-gust">
+          <div class="header">Vindkast</div>
+          <div class="value small">{{ Math.round(current.windGust * 10)/10 }}</div>
+          <div class="unit">m/s {{ current.windGustDir }}&deg;</div>
+        </div>
+        <div v-if="current.outHumidity != null" class="col-6 col-sm-3 reading outdoor-humidity">
+          <div class="header">Fuktighet ute</div>
+          <div class="value">{{ Math.round(current.outHumidity) }}</div>
+          <div class="unit">%</div>
+        </div>
+        <div v-if="current.inHumidity != null" class="col-6 col-sm-3 reading indoor-humidity">
+          <div class="header">Fuktighet inne</div>
+          <div class="value">{{ Math.round(current.inHumidity) }}</div>
+          <div class="unit">%</div>
+        </div>
+      <!--<Footer />-->
+      </div>
+
+      <div class="footer" v-if="current.dateTime">
+        <div class="text">
+            Oppdatert {{ getUpdateTime() }}
+          </div>
+      </div>
+    </div>
+  </script>
+
+  <script type="text/javascript" src="vendor.js"></script>
+  <script type="text/javascript" src="main.js"></script>
+</body>
+
 </html>
